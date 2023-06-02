@@ -1,0 +1,90 @@
+---
+title: "Untitled"
+author: "Akhilesh Huria"
+date: "2023-02-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(rpart)
+library(randomForest)
+library(readxl)
+library(e1071)
+library(class)
+library(glmnet)
+library(neuralnet)
+library(nnet)
+library(caret)
+library(h2o)
+```
+
+
+```{r}
+file_pathtrain1 <- file.choose()
+```
+
+```{r}
+
+training_datachallenge1 <- read_excel(file_pathtrain1)
+
+```
+
+
+```{r}
+file_pathtest1 <- file.choose()
+
+```
+
+```{r}
+test_datachallenge1 <- read_excel(file_pathtest1)
+```
+
+```{r}
+Xtest <- test_datachallenge1[, 2:36]
+Ytest <- test_datachallenge1[, 1]
+```
+
+
+```{r}
+Xtraining <- training_datachallenge1[, 2:36]
+Ytraining <- training_datachallenge1[, 1]
+```
+
+```{r}
+Ytraining <- as.vector(Ytraining)
+ncol(Ytraining)
+class(Ytraining)
+
+```
+
+
+```{r}
+training_x_std <- scale(Xtraining)
+test_x_std <- scale(Xtest)
+```
+
+
+```{r}
+neural_net <- neuralnet(Ytraining ~ test_x_std, data = training_datachallenge1, hidden = c(5,3), learningrate = 0.01, act.fct = "logistic")
+
+```
+
+
+
+```{r}
+NNETprediction <- neuralnet::compute(neural_net, test_x_std)
+```
+
+
+
+```{r}
+test_data_with_NNETprediction <- cbind(NNETprediction, test_datachallenge1)
+
+write.csv(test_data_with_NNETprediction, "test_data1_NNETFinal.csv")
+```
+
+

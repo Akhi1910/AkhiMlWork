@@ -1,0 +1,68 @@
+---
+title: "Untitled"
+author: "Akhilesh Huria"
+date: "2023-02-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Load the h2o package
+library(h2o)
+library(readxl)
+```
+
+```{r}
+# Start the h2o cluster
+h2o.init()
+```
+
+```{r}
+# Read in the training and testing data
+train <- h2o.importFile("ST310_challenge1_train (1).csv")
+test <- h2o.importFile("ST310_challenge1_test (2).csv")
+
+```
+
+```{r}
+features <- 1:35
+response <- 36
+```
+
+```{r}
+train[, response] <- as.factor(train[, response])
+class(response)
+anyNA(train)
+```
+
+```{r}
+train_h2o <- as.h2o(train)
+```
+
+
+```{r}
+# Specify the neural network model
+model <- h2o.deeplearning(x = features, y = response, training_frame = train_h2o,
+                          hidden = c(7, 7, 7, 7), epochs = 32, activation = "Tanh")
+```
+
+```{r}
+# Make predictions on the test data
+predictions <- h2o.predict(model, newdata = test)
+```
+```{r}
+y <- as.data.frame(predictions$predict)
+```
+
+
+
+
+
+
+
+
+
+

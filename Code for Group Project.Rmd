@@ -1,0 +1,569 @@
+---
+title: "41113_42071_48034_ST310Project"
+author: "41113, 42071, 48034"
+date: "2023-04-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(modeldata) 
+library(ISLR2) 
+library(class)
+library(dplyr)
+library(caret)
+library(tidyr)
+library(glmnet)
+library(rpart)
+library(randomForest)
+```
+
+##NOTE REGARDING GRADIENT DESCENT AND POLYNOMIAL MODELS
+
+```{r}
+#Please note that due to the complex and unfamiliar code required for some of these models (specifically the gradient descent and the polynomial models), we used the following website for their some of their code (this is copied directly from the source for the sigmoid function, the cost function and the gradient descent optimisation using the 'optim' function - all else was done ):
+
+# https://www.r-bloggers.com/2013/12/logistic-regression-with-r-step-by-step-implementation-part-2/amp/
+```
+
+
+
+
+##PART 0 - OUR DATASET
+```{r}
+
+# Our chosen dataset is loan data from the Lending Club. As stated in the loan data description: ‘These data were downloaded from the Lending Club access site (see below) and are from the first quarter of 2016. A subset of the rows and variables are included here. The outcome is in the variable Class and is either "good" (meaning that the loan was fully paid back or currently on-time) or "bad" (charged off, defaulted, of 21-120 days late).’
+# To re-iterate, our chosen outcome variable is ‘Class’ with two outcomes: Good (paid back on time), or Bad (defaulted or late).
+# Our goal with this dataset is to apply several different machine learning models in order to predict the outcome variable from the test dataset (after splitting the data into training and test) based upon different given requirements, and to ultimately compare their accuracies, determining what could possibly be the optimal way to predict what kind of debtor is most likely to default on their loans.
+```
+
+
+##PROJECT INTRODUCTION AND MOTIVATION
+```{r}
+# The purpose of choosing lending_club from modeldata is as follows: we were intrigued by the context of the data and wanted to know if there were any specific tells for whether or not a loan is to be ‘bad’ (meaning defaulted or not paid back on time) – the application of finding such a pattern would be incredibly useful in the real world since it would allow lenders to more accurately determine whether or not they would be making a losing bet (if they were to lend to a bad debtor, in other words) and could potentially avoid such a transaction in the future. Of course, in the limited scope of our ML modelling knowledge, the questions we were asking were more in the vein of: how accurately could we predict a bad loan, and if implementing more independent variables was actually useful in increasing predictive accuracy? Though the implications are fairly simple, and likely well documented, it would allow us to not only answer a question regarding our own data, but also the nature datasets more broadly. We could even try and identify which of the independent variables are ‘unnecessary’ or detrimental.
+
+# The dataset itself is generally very suitable for analysis – we have plenty of observational data (with 9857 data points for every variable), 22 independent variables and one outcome variable (Class – ‘good’ or ‘bad’ loans as described prior). As far as the independent variables themselves are concerned, there are some issues with coding analysis that did provide some hiccups during our project work (most importantly the different classes of data, since some were numerical, others categorical). We have discussed the issues and our workarounds in the context of each of the models that we have used.
+
+# Our expectations from this analysis were as follows: we expected to have to work very hard on small margins, since the number of ‘bad’ loans is vastly outnumbered by the number of ‘good’ loans, and naturally, that would likely start us off with a very high predictive accuracy to begin with. However, fortunately for us, regardless of the outcome (accuracy) of the models used, we would be able to comment on the nature of the data at hand and the application of our chosen models.
+
+```
+
+
+```{r}
+#Here, all we are doing is loading in the relevant dataset from our package 'modeldata', and we are then simply viewing some of the elements of this dataset for easier interpretation. It is not necessary to have head(lending_club) or ?lending_club, however, they do allow us to understand and contextualise the data we have.
+
+data("lending_club")
+head(lending_club)
+#Note that the following line of code is essentially the same as above, however, we have done this just to make sure that we are loading in the correct data as we encountered some issues.
+data("lending_club", package = "modeldata")
+?lending_club
+```
+
+
+```{r}
+summary(lending_club$Class)
+colnames(lending_club)
+```
+
+##PART 2 - BASELINE MODEL (LOGISTIC REGRESSION)
+```{r}
+# Firstly, we are tasked with creating a baseline prediction model for our dataset. As such, we have chosen a logistical regression model, in which we will be choosing a few of what we deem to be the most important variables, subsequently applying the logreg model and predicting output on the test dataset. The reason we chose this model to be our baseline is primarily because it is so easy to implement and deploy: all we had to do was split our model into its training and test datasets and then apply the model using the glm package. Additionally, it is clear to see how adaptable the model is to different kinds of data - here we needed it for binary classification, which it has done very successfully.
+
+#Since we are aware that the logistic regression algorithm should be employed with the use of a few key independent variables, we have decided to go with the four that seemed to be the most important from a qualitative perspective - i) funded_amnt is of course important given that it shows us the relation between the surface level of the transaction (how much money exchanges hands and whether or not it's given back). One thing to note is that we cannot always look at this kind of variable in a vacuum since it is also important to note how much the debtor earns in order to understand the likelihood of repayment (perhaps an interaction term between this and annual_inc would be appropriate), however, we have made the assumption for our baseline model, that the firm would keep this in mind when loaning money and likely has policies against lending to default risk-heavy debtors.
+
+#ii) The second is int_rate, which is important as it shows the risk taken on by the debtor and would likely correlate heavily to the repayment of a loan. iii) Our third independent variable is sub_grade - a variable that likely highly correlates to the int_rate as well as the other two independent variables chosen, however we included it since it is revealing about the risk of default quite directly. iv) Finally, we have annual_inc: perhaps the most important of the variables shown at the surface level (especially in conjunction with the first variable).
+```
+
+
+```{r}
+# We firstly choose the dataset and from that, the input and output variables
+chosendataLR <- select(lending_club, funded_amnt, int_rate, sub_grade, annual_inc, Class)
+
+# Since our output is a binary classification variable, we choose to change into a factor variable
+chosendataLR$Class <- as.factor(chosendataLR$Class)
+
+# We use the following code to split the dataset into training and test components. There is another method that we used in the following section, however they both achieve the same result.
+set.seed(4535) # For reproducibility
+trainsplit <- createDataPartition(chosendataLR$Class, p = 0.8, list = FALSE)
+trainingLR <- chosendataLR[trainsplit,]
+testingLR <- chosendataLR[-trainsplit,]
+
+# Use the logistic regression model for training
+logregmodel <- glm(unlist(chosendataLR$Class) ~ ., data = chosendataLR[,1:4], family = "binomial")
+
+# Make predictions in the test dataset on the variable Class. Instead of using the sigmoid function as we do later in our project (for the gradient descent algorithm, due to standard practice, given the information available), we have instead chosen to simply make predictions by splitting the dataset into training and test sets.
+LRProbability <- predict(logregmodel, newdata = testingLR[,1:4], type = "response")
+LRPrediction <- ifelse(LRProbability > 0.5, "good", "bad")
+
+# Evaluate the accuracy of our prediction on the test set
+accuracyLR <- mean(LRPrediction == testingLR$Class)
+print(paste("Accuracy:", accuracyLR))
+```
+
+```{r}
+# As we can see, the accuracy of our predictions comes out to approximately 0.95 (95%) - this is incredibly high for a baseline model and will make it quite difficult to top. Understanding this accuracy will have to begin with understanding the dataset and the limitations of the model we are using.
+
+# As logistic regression is a fairly rudimentary model that we used as our baseline (since it is unable to capture truly complex relationships between variables - it assumes a linear relationship between the independent variables and their log(odds)), though it is very easy to implement.
+
+#Therefore, receiving a predictive accuracy of almost 95% on our test data may seem a little too high. Our dataset may be to blame for such a high accuracy:
+
+summary(lending_club$Class)
+
+#If we, again, take a look at the summary of our binary classification output variable, we can tell where the problem may lie - the fact that in the loan data for the first quarter of 2016, we have 517 bad loans and 9340 good loans, suggests that if we always guess that the loan will be paid back on time and in full (i.e. we have a good loan), we will be correct 9340/9857 = 94.75% of the time, which is almost exactly the accuracy rate that we managed to achieve on the logistic regression.
+
+#What this tells us is that the dataset itself is fairly skewed in its binary classification and as such, we may run into problems trying to classify a bad loan, since there are so few of them.
+
+#The biggest problem we are facing, that we will either have to address in our analysis or by tweaking the models themselves (though this may be slightly beyond our scope, especially with regard to things like gradient descent), is that bias towards the majority classification would lead to an abundance of high accuracy rates regardless of the model that we use. As such, we will have to try and configure the models in such a way that we can squeeze out greater accuracy (or perhaps, though there are diminishing marginal returns at greater accuracy levels, we could still see a fairly significant rise in accuracy.).
+
+#To re-iterate, though the model has very high predictive accuracy, perhaps a way to improve it would be to include interaction terms. For the purpose of a baseline model, however, what we have done suffices.
+```
+
+
+##PART 3 - INCLUDING GRADIENT DESCENT
+```{r}
+
+#In order to try and see at least a marginal rise in accuracy rates, we can try and implement the gradient descent algorithm to our existing logistic regression.
+
+#We are aware that the algorithm is used to minimise the 'cost function' of a model, meaning that it should, in theory, always cause the accuracy of the model to rise. In the context of logistic regression: like always, the algorithm iteratively updates our logistic regression model parameters in the opposite direction to the gradient of our loss function, in order to minimise the cost function and thereby find the (optimal) parameters that will theoretically allow us to also minimise the error in our predictions.
+```
+
+
+```{r}
+#Due to homogenisation of certain results, we have attempted to change the way in which we split the dataset and as such what training and test data we use to see how it changes our accuracy:
+
+trainGD <- sort(sample(nrow(lending_club), 9857*0.8))
+
+lending_trainGD <- lending_club[trainGD, ]
+
+lending_testGD <- lending_club[-trainGD, ]
+
+#Here we make a matrix of the predictor variables, converting "good" and "bad" to numerical values, the as.numeric function converts the factor to 1s and 2s and the as.matrix function puts it all into matrix form, we then subtract 1 from all values to obtain 1s and 0s
+
+y1 <- lending_trainGD$Class
+h<-as.matrix(as.numeric(as.factor(y1)))
+y<- h-1
+
+#separates the  interest rate and annual income from the data set, put them into matrix form and bind them together.
+#We also add a column of 1s to the start where the intercept will be stored.
+
+x1<- as.matrix(lending_trainGD$int_rate)
+
+x2<- as.matrix(lending_trainGD$annual_inc)
+
+X<- cbind(x1,x2)
+
+X <- cbind(rep(1,nrow(X)),X)
+
+#Implementing the sigmoid function for logistic regression. We use this in order to transform the output into a value between 0 and 1 which we can then turn into binary classification later on (essentially simplifying the process.) This is an alternative method to the method used in the first model, however it essentially achieves the same result.
+sigmoid <- function(z)
+{
+g <- 1/(1+exp(-z))
+return(g)
+}
+
+#Implementing the cost Function for logistic regression (the object that we ought to minimise)
+cost <- function(theta)
+{
+m <- nrow(X)
+g <- sigmoid(X%*%theta)
+J <- (1/m)*sum((-y*log(g)) - ((1-y)*log(1-g)))
+return(J)
+}
+
+#Starting with Initial theta
+initial_thetaGD <- rep(0,ncol(X))
+#Cost at initial theta
+cost(initial_thetaGD)
+
+# Derive theta using gradient descent using optim function
+theta_optimGD <- optim(par=initial_thetaGD,fn=cost)
+
+#set theta to its optimal value
+theta <- theta_optimGD$par
+
+#cost at optimal value of the theta
+theta_optimGD$value
+
+#optimal value of theta derived from training data
+theta
+
+#Predicting test outcomes,  very similar code from before to prep the data
+
+xtest1<- as.matrix(lending_testGD$int_rate)
+
+xtest2<- as.matrix(lending_testGD$annual_inc)
+
+xtest<- cbind(xtest1,xtest2)
+
+xtest <- cbind(rep(1,nrow(xtest)),xtest)
+
+
+
+#creates a matrix to store predictions, the first one will be removed later.
+yhat<-as.matrix(1)
+
+
+#this 'for' loop creates the predictions, runs through each set of X values, multiplies it by optimal theta, and ultimately returns the probability of the class being good, if this is above -.5, the class is seen as "good" or equivalently 1. Then,  1 is added to the matrix of predictions yhat, if not 0 is added to signify the class is bad (a 'bad' loan).
+
+for ( i in 1:nrow(lending_testGD)){
+
+    
+    prob <- sigmoid(t(c(1,xtest[i,2],xtest[i,3]))%*%theta)
+    
+    prob
+    
+
+    if (prob<0.5){
+    
+    yhat<- rbind(yhat,c(0))
+    
+    
+    } else{ yhat<- rbind(yhat,c(1))}
+
+
+}
+
+
+
+# Simply checking that yhat has correct dimensions
+
+dim(yhat)
+
+
+# removes first value of matrix which was placed in when matrix was created and checks that dimensions are all correct
+
+
+yhat<- matrix(yhat[2:nrow(yhat), ])
+dim(yhat)
+
+
+
+#assigns the actual outcome variable values to ytest and converts it all to binary classification:
+ytest <- lending_testGD$Class
+htest<-as.matrix(as.numeric(as.factor(ytest)))
+ytest<- htest-1
+
+
+dim(ytest)
+dim(yhat)
+
+#Creating variables to store if classification was correctly done or not.
+correct<-0
+error<-0
+
+# yhat and ytest is either 1 or 0, if predicted correctly ytotal for each element will either be 0 or 2, and as such, if an element in ytotal is equal to 1 then it was incorrectly predicted:
+
+ytotal= as.matrix(yhat)+ytest
+
+for (i in 1:nrow(ytotal)){
+         
+         if (ytotal[i,1]==1){
+         
+                 error<- error+1
+         } else{ correct<- correct+1}
+
+
+
+}
+
+#prints number of correct predictions, incorrect predictions and the error rate
+correct
+error
+
+error_rate<- error/(correct+error)*100
+
+error_rate
+
+#From this we see the model does indeed predict the Class, however as it is now it is not very useful, since it has very little interpretability and the whole point of predicting class is to be able to predict if an individual should be given a loan, giving a loan to a unreliable to person would results in a loss, and not being able to predict this means this model is not very useful. Using more predictors however would perhaps increase the predictive ability of this model. In terms of sheer technical predictability looking at the error rate, the gradient descent model would be very useful. One of the causes for this models inability to predict the bad "class" could perhaps be attributed to the fact that the training data has so few observations where an individuals class is "bad".
+
+count<- 0
+
+for (i in 1:nrow(lending_club)){
+
+    if (lending_club$Class[i]=="bad"){
+    
+    count<-count+1
+    }
+
+
+}
+
+count
+
+#looking at this we can see only 517 out of 9857 observations were "bad" this would make it difficult to train a good predictive model as a lot of these observations would be seen almost as anomalies and overshadowed by the sheer number of "good" observations  when optimising the gradient as we have previously stated multiple times.
+
+plot(lending_club$int_rate,lending_club$annual_inc,col=as.factor(lending_club$Class),xlab="interest",ylab="income")
+
+
+#looking at the plot we can also see the predictors used were not the best in mind, the "bad" observations while slightly more concentrated toward the high interest, low income side are pretty scattered around, highlighting the . To improve this model I would suggest using more predictors.
+
+
+theta
+
+
+compare_model<- glm(unlist(Class)~ int_rate + annual_inc, data=lending_trainGD, family=binomial)
+
+
+summary(compare_model)
+
+
+#looking at the the values of theta provided by the glm function compared to the gradient descent method shows that the optimisation was quite accurate, The theta for the more relevant predictor of interest rate (shown by the low p values) was predicted much more accurately than that of annual income which is far less significant. Perhaps using predictors with more significance would also allow for a better optimisation.
+
+```
+
+```{r}
+#The important value, error rate:
+error_rate
+```
+
+
+```{r}
+#OBSERVATIONS ON THE GRADIENT DESCENT
+
+#We are aware and have detailed how our dataset is skewed towards the 'good' loan - one of the two classifications that is present within our set. This of course comes with it's pitfalls when discussing the reliability of the models used. Regardless, we can comment on what our results imply and how to potentially improve the results:
+
+#Please note that due to several people working on this code using different strategies to overcome individual issues, some of the code is slightly more difficult to glean information from at face value - however, in order to simplify, here, we are provided with the error rate of this model as opposed to the accuracy term used in the previous and some of the subsequent models - in order to translate this value into something digestible and comparable, we can simply subtract this value from 100 and turn it into a percentage, which outputs the following:
+
+accuracyGD <- (100 - error_rate)/100
+accuracyGD
+
+#This goes against intuition and suggests that by somehow minimising the cost function, we have increased our error. This issue will be further discussed in the Random Forest Section.
+```
+
+
+##PART 4: INTRO TO DECISION TREES - HIGH INTERPRETABILITY (MODEL 3)
+```{r}
+
+#We are already aware that on a general level, the interpretability of the decision trees model is very high and it allows us to understand how the model is making its predictions, which we will discuss below. Additionally, it is useful in the context of binary classification due to its ability to be trained to identify the most important variables, in essence making it perfect for feature selection. Furthermore,the fact that they are able to handle both categorical and numerical data simultaneously makes them perfect for exploring the data that we will input (since this is a major aspect of our dataset).
+
+#A pitfall of decision trees is that it may generalise too much on the training data and could lead to overfitting, perhaps causing an overall decrease in the accuracy of predictions on the test dataset. Note, that in order to keep everything as similar as possible for the best comparisons, we will be setting the seed to the same thing and attempting to train and test on the same number of observations.
+
+#What we can expect is high accuracy as always, however it will be interesting to see how this model measures up to the original baseline, especially since this is specifically tuned for higher interpretability and not for the highest possible predictive accuracy.
+```
+
+
+```{r}
+#For our 3rd model, we used the decision trees model for high interpretability:
+
+# We now simply choose the dataset given (since we are attempting to use all predictors)
+chosendataDT <- lending_club
+
+# Changing 'Class' to a factor variable as before
+chosendataDT$Class <- as.factor(chosendataDT$Class)
+
+# Splitting the dataset
+set.seed(1231) 
+trainsplitDT <- createDataPartition(chosendataDT$Class, p = 0.8, list = FALSE)
+trainingDT <- chosendataDT[trainsplitDT,]
+testingDT <- chosendataDT[-trainsplitDT,]
+
+
+# Build decision tree model
+modelDT <- rpart(formula = Class ~ .,data = trainingDT,method = "class")
+
+# Make predictions on test data
+predDT <- predict(modelDT, newdata = testingDT, type = "class")
+
+
+# Finding the accuracy of the predictions
+accuracyDT <- mean(predDT == testingDT$Class)
+accuracyDT
+```
+
+```{r}
+#Showing the interpretability of Decision Trees
+
+#There seems to be some issue with the above code in terms of measuring feature importance (even when implementing node splits), however since this is important to note, we can describe how we will tackle the issue as follows:
+
+#'featimpor <- varImp(modelDT)
+# print(featimpor)'
+
+#Generally speaking, the reason we consider Decision Trees so interpretable is because it is capable of showing us individual feature importance, through the varImp() command. Regrettably, we are not able to show this due to errors that keep occurring, however we would like to show that we understand why we consider it an interpretable model.
+```
+
+
+```{r}
+#OBSERVATIONS ON DECISION TREES
+
+#Understanding the fact that it provides a high accuracy is a great benefit in an interpretable model such as this - however, this does not necessarily mean that it is the ideal model for predictions on our dataset (especially when we consider that this dataset only includes data for one quarter in 2016). In order to test how it can generalise to more of the same data, we ought to test it on different timeframes and a greater amount of test data. What this could potentially reveal is that the cause of such high accuracy in a model such as this, is that we simply do not have enough 'bad' loans to train it on.
+
+# Please note that we have changed some of the training parameters due to an odd occurrence where the accuracy revealed was identical to the original logistical regression accuracy value - though it is now different, the change is minuscule and essentially tells us the same thing.
+
+```
+
+
+##PART 5 - RELATIVELY HIGH DIMENSIONAL RANDOM FOREST (FINAL TWO REQUIREMENTS)
+
+```{r}
+
+
+#Our methodology for tackling the final two model requirements were to increase the dimensionality of the dataset by introducing polynomial terms (for our independent variables). Please note that the first attempt at increasing dimensionality to our admittedly fairly low dimensional, vanilla dataset was to use interaction terms. However, this attempt was futile due to the complexity of the code required to output anything relevant and as such we decided to opt for the safer route of manually inputting polynomial terms up to order = 4.
+
+#To prelude the model itself, we are aware of the difference in quality of the two methods, especially in the context our dataset - as we have mentioned previously, adding interaction terms would actually be beneficial for revealing new non-linear relationships (like polynomials), however with so many categorical variables alongside our numerical variables, the code was far too complex and ran into several issues. Additionally, though interaction terms would actually provide a greater number of 'x' variables as well as superior insight into what exactly causes a 'bad' loan to occur, polynomial terms are a fairly suitable replacement - although overfitting is an issue.
+
+#Although the number of terms is far lower than if we had chosen to interact every term together and added it to our original dataset (22*22 variables), as per the requirements of the project we do not require a great amount of interpretability and can instead focus on trying to increase the predictive accuracy of our model instead (specifically to above baseline).
+
+#To that end - since our dimensionality is still going to be fairly low (although higher than baseline) - we chose to explore the randomForest model. As we are aware, randomForest is known for its robustness in tackling a large amount of data and variability as well as its predictive accuracy (which is likely to be the case for a binary classification task as well). Additionally, like its less complex counterpart (DecisionTrees), it is extremely adept at feature selection and importance and can be a good choice when considering that overfitting is a rarity.
+
+#RandomForest in conjunction with the polynomial route we have chosen may change our outcome fairly drastically however: overfitting may suddenly be an issue due to the nature of the polynomial variables, and it will be much more computationally expensive than our baseline model. Finally, just to note, we are aware that in an absolute sense, this is still not a high-dimensional model, however after exhausting our capabilities, we were able to only come up with a relatively 'higher' dimensional model to work with, which should theoretically still improve predictive accuracy.
+```
+
+
+
+```{r}
+
+lending_continous <- lending_trainGD[ ,-which(sapply(lending_club, class)== "factor")]
+
+dim(lending_continous)
+
+
+names(lending_continous)
+
+lending_cont2<- lending_continous^2
+colnames(lending_cont2)<- c("funded_amnt2" , "int_rate2", "annual_inc2",
+                            "delinQ_2yrs2", "inq_last_6mths2", "revol_util2",
+                            "acc_now_delinq2", "open_il_6m2", "open_il_12m2",
+                            "open_il_24m2", "total_bal_il2","all_util2",
+                            "inq_fi2", "inq_last_12m2", "dlinq_amnt2", "num_il_tl2",
+                            "total_il_high_credit_limit2")
+
+
+lending_cont3<- lending_continous^3
+colnames(lending_cont3)<- c("funded_amnt3" , "int_rate3", "annual_inc3",
+                            "delinQ_2yrs3", "inq_last_6mths3", "revol_util3",
+                            "acc_now_delinq3", "open_il_6m3", "open_il_12m3",
+                            "open_il_24m3", "total_bal_il3","all_util3",
+                            "inq_fi3", "inq_last_12m3", "dlinq_amnt3", "num_il_tl3",
+                            "total_il_high_credit_limit3")
+
+
+lending_cont4<- lending_continous^4
+colnames(lending_cont4)<- c("funded_amnt4" , "int_rate4", "annual_inc4",
+                            "delinQ_2yrs4", "inq_last_6mths4", "revol_util4",
+                            "acc_now_delinq4", "open_il_6m4", "open_il_12m4",
+                            "open_il_24m4", "total_bal_il4","all_util4",
+                            "inq_fi4", "inq_last_12m4", "dlinq_amnt4", "num_il_tl4",
+                            "total_il_high_credit_limit4")
+
+
+data <- cbind(lending_trainGD, lending_cont2, lending_cont3, lending_cont4)
+names(data)
+
+#high.dim_model<- glm( unlist(Class) ~ . , data= data, family= binomial)
+
+#high.dim_model
+
+
+forest<- randomForest(Class~ ., data=data, mtry=12, ntree=25, importance=TRUE )
+
+
+#making a similar test data set
+
+
+lending_continous.test <- lending_testGD[ ,-which(sapply(lending_testGD, class)== "factor")]
+
+dim(lending_continous.test)
+
+
+names(lending_continous.test)
+
+lending_cont2.test<- lending_continous.test^2
+colnames(lending_cont2.test)<- c("funded_amnt2" , "int_rate2", "annual_inc2",
+                            "delinQ_2yrs2", "inq_last_6mths2", "revol_util2",
+                            "acc_now_delinq2", "open_il_6m2", "open_il_12m2",
+                            "open_il_24m2", "total_bal_il2","all_util2",
+                            "inq_fi2", "inq_last_12m2", "dlinq_amnt2", "num_il_tl2",
+                            "total_il_high_credit_limit2")
+
+
+lending_cont3.test<- lending_continous.test^3
+colnames(lending_cont3.test)<- c("funded_amnt3" , "int_rate3", "annual_inc3",
+                            "delinQ_2yrs3", "inq_last_6mths3", "revol_util3",
+                            "acc_now_delinq3", "open_il_6m3", "open_il_12m3",
+                            "open_il_24m3", "total_bal_il3","all_util3",
+                            "inq_fi3", "inq_last_12m3", "dlinq_amnt3", "num_il_tl3",
+                            "total_il_high_credit_limit3")
+
+
+lending_cont4.test<- lending_continous.test^4
+colnames(lending_cont4.test)<- c("funded_amnt4" , "int_rate4", "annual_inc4",
+                            "delinQ_2yrs4", "inq_last_6mths4", "revol_util4",
+                            "acc_now_delinq4", "open_il_6m4", "open_il_12m4",
+                            "open_il_24m4", "total_bal_il4","all_util4",
+                            "inq_fi4", "inq_last_12m4", "dlinq_amnt4", "num_il_tl4",
+                            "total_il_high_credit_limit4")
+
+
+data.test <- cbind(lending_testGD, lending_cont2.test, lending_cont3.test, lending_cont4.test)
+
+
+yhat.rf <- predict(forest, data.test)
+
+
+actualy.rf<- data.test$Class
+
+error.rf<-0
+correct.rf<-0
+
+for (i in 1:nrow(data.test)){
+
+    if (yhat.rf[i]==actualy.rf[i]){
+    
+    correct.rf<-correct.rf+1
+    } else{ error.rf<- error.rf+1}
+
+   
+
+
+}
+
+error.rf
+
+correct.rf
+
+# Calculate accuracy
+# Evaluate model performance
+accuracyRF <- mean(yhat.rf == data.test$Class)
+accuracyRF
+```
+
+```{r}
+#OBSERVATIONS FOR RANDOM FOREST
+
+#Strangely, we find that despite the robustness of the Random Forest model in conjunction and polynomial terms in theory, we end up with a relatively low predictive accuracy. There are several reasons why this may occur and we will try discussing potential solutions:
+
+#We are aware that overfitting is likely the greatest culprit when it comes to the lack of generalisation especially considering that we opted for an alternative approach to the testing data here (instead of splitting, we generated 'similar' data to apply our trained model to) - this is likely due to the complexity of the polynomial terms as we reach higher orders (we are already aware that an order of 4 likely would not reveal any additional information to us or the model, though we preferred not to take that chance). 
+
+#Another recurring issue is the lack of appropriate data - the bias towards 'good' loans is likely also partially to blame for this issue as it magnifies given the added polynomial terms. Again, to mitigate this, we would need loan data over a much longer time period.
+
+#Finally, as you may have noticed, due to the complexity of the code, we had to opt to only use numerical data and leave out categorical data and as such we may to blame for the inaccuracy - our choice of parameters was informed only by the fact that they were numeric and as such we may have included only irrelevant or 'incorrect' independent variables. Realistically, we were bound from doing anything else since making a categorical variable and turning it into a polynomial would have likely led to an increase in unnecessary complexity and overfitting.
+
+#Our final observation on this model is: Although the method to reveal the accuracy of each method was different, the fact that it output the exact same accuracy is cause for concern - there is likely an issue with the code itself, given that the first few lines of code are shared with the Gradient Descent model.
+
+#Regardless, it is apparent that we would likely be much better off finding a solution to code interaction terms, leaving us with a better accuracy rate and to incorporate more data to train on (as is true for all the models we have used in our project).
+```
+
+##PART 6 - CONCLUDING REMARKS, ANSWERS TO OUR QUESTIONS AND VALUE OF RESULTS
+
+```{r}
+#We know that our original data has several shortcomings with regards to it bias towards one category when discussing the desired outcome variable, and this has affected the accuracy measurements for all of our models. Additionally, we only used one type of accuracy measurement – in general this may be a drawback, but if you recall, our required output variable is a binary categorical variable and as such, the standard accuracy measurement we used would suffice, although other measures may be revealing.
+
+#Our results suggest that using these ML models and techniques would, despite the glaring issues with our specific dataset, be an excellent starting point for these firms to be able to determine in advance what kind of debtor they are currently processing data for (this may already be the case and we are simply not aware of it). Though with its flaws, it would certainly speed up the process.
+
+#Within the scope of our project itself, what we have understood from this project is that while simplicity generally tends to give greater predictive accuracy for ‘good’ or ‘bad’ loans, given greater resources and understanding of the underlying code, there is potential for there to be advancements at increasing the predictive accuracy (even if improvements are marginal), as detailed when we talked about using interaction terms rather than polynomials and this would be furthered if we were to detail each independent variable and understand which variables are confounding (which would be more easily analysed when done through interactions).
+
+#To re-iterate once last time, the fact that we managed to get the same predictive accuracy with several models is surprising (which is why we changed the seed etc.), however it reveals one of two things: since some of our methods of implementing models were not entirely identical to one another, this may have provided opportunity for gaps in predictive accuracy to present themselves. On the other hand, the dataset may genuinely benefit from simplification, and many of the predictor variables could simply be the cause of greater confusion.
+
+#What is readily apparent and our primary conclusion, is that the predictive accuracies of all these models are far too similar, showing us that the bias of the classification data is too strongly skewed towards 'good' loans and we would require access to more 'bad' loans to differentiate between them to a better degree.
+
+#It is also important to justify our choice of direction - the fact that we chose not to go in the direction of finding the predictor variable or variables with the highest correlation between changes in its value and changes in the binary classification output variable is in direct response to the requirements of this task. Given the dataset that we have chosen, with the predictor variables that are highly complex when considering if they are confounding or confounded themselves, we would have to perform very complex statistical computations to reveal something that may be more readily apparent (in a qualitative sense). Instead, commenting on the nature of the dataset itself has proven to be more rewarding, as we have more to say.
+
+#While our data itself is not revealing about the nature of the models we have used, we have been able to analyse the value of the dataset itself and how it could be better implemented in the real world.
+
+```
+
+

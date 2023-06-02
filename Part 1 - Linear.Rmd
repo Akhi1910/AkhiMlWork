@@ -1,0 +1,70 @@
+---
+title: "Untitled"
+author: "Akhilesh Huria"
+date: "2023-02-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(rpart)
+library(randomForest)
+library(readxl)
+library(e1701)
+library(class)
+library(glmnet)
+```
+
+
+```{r}
+file_pathtrain1 <- file.choose()
+```
+
+```{r}
+
+training_datachallenge1 <- read_excel(file_pathtrain1)
+
+#We can then try and fit the data to different models and evaluate their effectiveness on the test data. But first we need to make sure we have 
+```
+
+```{r}
+linmodel <- lm(y ~ ., data = training_datachallenge1)
+
+#Since we have now applied the linear regression model to the training data, we can load the test data and predict the outcome variable 'y' for that dataset.
+```
+
+```{r}
+file_pathtest1 <- file.choose()
+
+```
+
+```{r}
+test_datachallenge1 <- read_excel(file_pathtest1)
+```
+
+```{r}
+#Now that we have loaded in both the training data - to which a linear regression model has been applied - and our test data, we can predict the outcome of the test data.
+
+linprediction <- predict(linmodel, newdata = test_datachallenge1)
+
+#Applying the mean-squared error to show how close the regression is to the data points:
+
+linMSE <- mean((training_datachallenge1$y - linprediction)^2)
+linMSE
+```
+
+
+
+
+```{r}
+test_datachallenge1$linprediction <- linprediction
+
+write.csv(test_datachallenge1, "test_data_withlinpredictions.csv")
+```
+
+
+
+

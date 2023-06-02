@@ -1,0 +1,76 @@
+---
+title: "INDIVIDUAL CHALLENGE PART 2 - DTM"
+author: "Akhilesh Huria"
+date: "2023-02-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(rpart)
+library(randomForest)
+library(readxl)
+```
+
+
+```{r}
+file_pathtrain2 <- file.choose()
+```
+
+```{r}
+#We will first load the training data from our file path as seen above.
+
+training_datachallenge2 <- read_excel(file_pathtrain2)
+
+#We can then try and fit the data to different models and evaluate their effectiveness on the test data. But first we need to make sure we have 
+```
+
+
+```{r}
+file_pathtest2 <- file.choose()
+
+```
+
+```{r}
+test_datachallenge2 <- read_excel(file_pathtest2)
+```
+
+
+
+```{r}
+#Attempting with other models - Decision Tree Model
+
+DTMmodel2 <- rpart(y ~ ., data = training_datachallenge2)
+
+```
+
+```{r}
+DTMprediction2 <- predict(DTMmodel, newdata = test_datachallenge2)
+```
+
+```{r}
+DTMMSE2 <- mean((training_datachallenge2$y - DTMprediction)^2)
+DTMMSE2
+```
+
+```{r}
+
+DTMprediction2 <- as.factor(DTMprediction2)
+
+correct_predictions2 <- DTMprediction2 == training_datachallenge2$y
+
+
+```
+
+
+```{r}
+test_datachallenge2$DTMprediction <- DTMprediction2
+
+write.csv(test_datachallenge2, "part2test_data_withDTMpredictions.csv")
+```
+
+
+

@@ -1,0 +1,71 @@
+---
+title: "Untitled"
+author: "Akhilesh Huria"
+date: "2023-02-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(rpart)
+library(randomForest)
+library(readxl)
+library(e1071)
+library(class)
+library(glmnet)
+```
+
+
+```{r}
+file_pathtrain1 <- file.choose()
+```
+
+```{r}
+
+training_datachallenge1 <- read_excel(file_pathtrain1)
+
+```
+
+
+```{r}
+file_pathtest1 <- file.choose()
+
+```
+
+```{r}
+test_datachallenge1 <- read_excel(file_pathtest1)
+```
+
+
+```{r}
+Xtraining <- as.matrix(training_datachallenge1[,-1])
+Ytraining <- as.matrix(training_datachallenge1[,1])
+
+```
+
+
+```{r}
+lassomodel1 <- glmnet(as.matrix(Xtraining), Ytraining, family = "binomial", alpha = 1)
+
+```
+
+
+
+```{r}
+#Now that we have loaded in both the training data - to which a LASSO has been applied - and our test data, we can predict the outcome of the test data.
+
+lassopredict1 <- predict(lassomodel1, newx = as.matrix(test_datachallenge1), type = "response")[,60]
+lassopredict1 <- ifelse(lassopredict1 > 0.5, 1, 0)
+```
+
+
+
+```{r}
+test_data_with_lassoprediction <- cbind(lassopredict1, test_datachallenge1)
+
+write.csv(test_data_with_lassoprediction, "test_data1_LASSOFinal.csv")
+```
+

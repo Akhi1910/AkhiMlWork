@@ -1,0 +1,116 @@
+---
+title: "Untitled"
+author: "Akhilesh Huria"
+date: "2023-02-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(h2o)
+
+# initialize h2o
+h2o.init()
+
+```
+
+```{r}
+# load training and test data
+train <- h2o.importFile("ST310_challenge2_trainneural.csv")
+test <- h2o.importFile("ST310_challenge2_testneural.csv")
+
+# set the name of the response column
+features <- 1:434
+response <- 435
+```
+
+```{r}
+# convert response column to factor if necessary
+if (is.numeric(train[, response])) {
+  train[, response] <- as.factor(train[, response])
+}
+if (is.numeric(test[, response])) {
+  test[, response] <- as.factor(test[, response])
+}
+```
+
+```{r}
+
+# set the predictor columns
+predictors <- setdiff(colnames(train), response)
+
+# define the model
+model <- h2o.deeplearning(x = predictors,
+                          y = response,
+                          training_frame = train,
+                          activation = "RectifierWithDropout",
+                          hidden = c(49, 49, 49),
+                          epochs = 250)
+                  
+```
+
+```{r}
+
+# make predictions on the test data
+predictions <- h2o.predict(model, newdata = test)
+
+```
+
+```{r}
+# download predictions as csv
+y <- as.data.frame(predictions$predict)
+write.csv(output, file = "challenge2h2opredictions.csv", row.names = FALSE)
+```
+
+
+
+
+
+
+
+```{r}
+#using cross-validation
+
+# Set up grid of hyperparameters to search
+hyper_params <- list(
+  hidden=c(10, 20, 30),
+  input_dropout_ratio=c(0, 0.05),
+  l1=c(0, 1e-5),
+  l2=c(0, 1e-5)
+)
+
+# Define search criteria
+search_criteria <- list(strategy = "RandomDiscrete", 
+                         max_models = 20, 
+                         seed = 1234,
+                         stopping_metric = "MSE",
+                         stopping_rounds = 5,
+                         stopping_tolerance = 1e-4)
+
+# Train a grid of deep learning models with cross-validation
+dl_models <- h2o.grid("deeplearning", 
+                      x = 1:434, 
+                      y = 435, 
+                      training_frame = train,
+                      validation_frame = test,
+                      epochs = 150, 
+                      stopping_rounds = 3,
+                      stopping_tolerance = 0.05,
+                      hyper_params = hyper_params, 
+                      search_criteria = search_criteria)
+
+# Get the best model
+best_dl_model <- dl_models@summary_table[1, "model_ids"]
+best_dl_model <- h2o.getModel(best_dl_model)
+
+# Generate predictions on test data using the best model
+predictions <- h2o.predict(best_dl_model, test)
+
+# Compute MSE on test data
+mse <- h2o.mse(h2o.performance(best_dl_model, test))
+```
+

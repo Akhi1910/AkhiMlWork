@@ -1,0 +1,68 @@
+---
+title: "INDIVIDUAL CHALLENGE PART 2 - LIN"
+author: "Akhilesh Huria"
+date: "2023-02-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(rpart)
+library(randomForest)
+library(readxl)
+```
+
+
+```{r}
+file_pathtrain2 <- file.choose()
+```
+
+```{r}
+#We will first load the training data from our file path as seen above.
+
+training_datachallenge2 <- read_excel(file_pathtrain2)
+
+#We can then try and fit the data to different models and evaluate their effectiveness on the test data. But first we need to make sure we have 
+```
+
+```{r}
+linmodel2 <- lm(y ~ ., data = training_datachallenge2)
+
+#Since we have now applied the linear regression model to the training data, we can load the test data and predict the outcome variable 'y' for that dataset.
+```
+
+```{r}
+file_pathtest2 <- file.choose()
+
+```
+
+```{r}
+test_datachallenge2 <- read_excel(file_pathtest2)
+```
+
+```{r}
+#Now that we have loaded in both the training data - to which a linear regression model has been applied - and our test data, we can predict the outcome of the test data.
+
+linprediction2 <- predict(linmodel2, newdata = test_datachallenge2)
+
+#Applying the mean-squared error to show how close the regression is to the data points:
+
+linMSE2 <- mean((training_datachallenge2$y - linprediction2)^2)
+linMSE2
+```
+
+
+
+
+```{r}
+test_datachallenge2$linprediction2 <- linprediction2
+
+write.csv(test_datachallenge2, "part2test_data_withlinpredictions.csv")
+```
+
+
+
+
